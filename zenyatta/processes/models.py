@@ -7,14 +7,26 @@ class Process(models.Model):
     def __str__(self):
         return self.title
 
-class Step(models.Model):
+
+class Task(models.Model):
     title = models.CharField(max_length=255)
     process = models.ForeignKey(
         Process,
         on_delete=models.SET_NULL,
-        related_name='steps',
+        related_name='tasks',
         null=True,
         blank=True
     )
     step_number = models.PositiveIntegerField()
     description = models.TextField(blank=True)
+    is_leaf = models.BooleanField(default=True)
+    linked_process = models.ForeignKey(
+        Process,
+        on_delete=models.SET_NULL,
+        related_name='title_task',
+        null=True,
+        blank=True
+    )
+
+    def __str__(self):
+        return self.title
