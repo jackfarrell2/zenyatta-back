@@ -6,7 +6,7 @@ from .models import Process, Task
 
 def get_task_data(task, index=0):
     """
-    Recursively get task data inlucding all nested sub-tasks.
+    Recursively get task data including all nested sub-tasks.
 
     Args:
         task: Task object
@@ -28,17 +28,19 @@ def get_task_data(task, index=0):
             sub_tasks.append(sub_task_data)
 
     return {
-        'id': f'node-{index}',
+        'id': f'node-{task.pk}',
+        'stepNumber': task.step_number,
         'label': task.title,
         'isLeaf': task.is_leaf,
         'subTasks': sub_tasks,
-        'linkedProcessId': linked_process_id
+        'linkedProcessId': linked_process_id,
+        'parentProcessId': task.process.id,
     }
 
 
 @api_view(['GET'])
 def get_process(request, process_id):
-    this_process = Process.objects.get(pk=1)
+    this_process = Process.objects.get(pk=process_id)
     this_process_tasks = this_process.tasks.all()
     tasks = []
 
