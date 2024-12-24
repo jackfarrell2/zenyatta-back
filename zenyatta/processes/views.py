@@ -16,8 +16,10 @@ def get_task_data(task, index=0):
         dict: Task data including nested sub-tasks
     """
     sub_tasks = []
+    linked_process_id = None
     if not task.is_leaf:
         this_task_process = task.linked_process
+        linked_process_id = this_task_process.pk
         linked_process_tasks = this_task_process.tasks.all()
 
         # Recursively get data for each sub-task
@@ -29,13 +31,14 @@ def get_task_data(task, index=0):
         'id': f'node-{index}',
         'label': task.title,
         'isLeaf': task.is_leaf,
-        'subTasks': sub_tasks
+        'subTasks': sub_tasks,
+        'linkedProcessId': linked_process_id
     }
 
 
 @api_view(['GET'])
-def get_processes(request):
-    this_process = Process.objects.get(title='Process Application')
+def get_process(request, process_id):
+    this_process = Process.objects.get(pk=1)
     this_process_tasks = this_process.tasks.all()
     tasks = []
 
@@ -44,4 +47,4 @@ def get_processes(request):
         task_data['targets'] = [
             f'node-{index + 1}'] if index < len(this_process_tasks) - 1 else []
         tasks.append(task_data)
-    return Response({'data': {'tasks': tasks}})
+    return Response({'data': {'title': this_process.title, 'tasks': tasks}})
