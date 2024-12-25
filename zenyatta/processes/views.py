@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from .models import Process, Task
 
 
-def get_task_data(task, index=0):
+def get_task_data(task):
     """
     Recursively get task data including all nested sub-tasks.
 
@@ -15,6 +15,7 @@ def get_task_data(task, index=0):
     Returns:
         dict: Task data including nested sub-tasks
     """
+
     sub_tasks = []
     linked_process_id = None
     if not task.is_leaf:
@@ -23,9 +24,15 @@ def get_task_data(task, index=0):
         linked_process_tasks = this_task_process.tasks.all()
 
         # Recursively get data for each sub-task
-        for sub_index, sub_task in enumerate(linked_process_tasks):
-            sub_task_data = get_task_data(sub_task, sub_index)
+        for sub_task in linked_process_tasks:
+            sub_task_data = get_task_data(sub_task)
             sub_tasks.append(sub_task_data)
+
+    parent_process = task.process
+    try:
+        next_step = [f'node-{Task.objects.get(process=parent_process, step_number=task.step_number + 1).pk}']
+    except:
+        next_step = []
 
     return {
         'id': f'node-{task.pk}',
@@ -34,7 +41,8 @@ def get_task_data(task, index=0):
         'isLeaf': task.is_leaf,
         'subTasks': sub_tasks,
         'linkedProcessId': linked_process_id,
-        'parentProcessId': task.process.id,
+        'parentProcessId': parent_process.id,
+        'targets': next_step
     }
 
 
@@ -44,9 +52,7 @@ def get_process(request, process_id):
     this_process_tasks = this_process.tasks.all()
     tasks = []
 
-    for index, task in enumerate(this_process_tasks):
-        task_data = get_task_data(task, index)
-        task_data['targets'] = [
-            f'node-{index + 1}'] if index < len(this_process_tasks) - 1 else []
+    for task in this_process_tasks:
+        task_data = get_task_data(task)
         tasks.append(task_data)
     return Response({'data': {'title': this_process.title, 'tasks': tasks}})
