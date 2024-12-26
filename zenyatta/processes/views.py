@@ -56,3 +56,10 @@ def get_process(request, process_id):
         task_data = get_task_data(task)
         tasks.append(task_data)
     return Response({'data': {'title': this_process.title, 'tasks': tasks}})
+
+
+@api_view(['GET'])
+def get_task(request, process_id, step_number):
+    tasks_process = Process.objects.get(pk=process_id)
+    task = tasks_process.tasks.get(step_number=step_number)
+    return Response({'data': {'title': 'title', 'content': f'{task.description}'}})
