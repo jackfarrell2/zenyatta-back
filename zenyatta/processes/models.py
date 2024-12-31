@@ -1,6 +1,21 @@
 from django.db import models
 
 
+def get_default_content():
+    return {
+        "type": "doc",
+        "content": [
+            {
+                "type": "paragraph",
+                "attrs": {
+                    "lineHeight": "normal",
+                    "textAlign": None
+                }
+            }
+        ]
+    }
+
+
 class Process(models.Model):
     title = models.CharField(max_length=255)
 
@@ -18,7 +33,7 @@ class Task(models.Model):
         blank=True
     )
     step_number = models.PositiveIntegerField()
-    description = models.TextField(blank=True)
+    content = models.JSONField(default=get_default_content)
     is_leaf = models.BooleanField(default=True)
     linked_process = models.ForeignKey(
         Process,

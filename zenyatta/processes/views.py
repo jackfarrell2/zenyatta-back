@@ -30,7 +30,8 @@ def get_task_data(task):
 
     parent_process = task.process
     try:
-        next_step = [f'node-{Task.objects.get(process=parent_process, step_number=task.step_number + 1).pk}']
+        next_step = [
+            f'node-{Task.objects.get(process=parent_process, step_number=task.step_number + 1).pk}']
     except:
         next_step = []
 
@@ -58,8 +59,23 @@ def get_process(request, process_id):
     return Response({'data': {'title': this_process.title, 'tasks': tasks}})
 
 
-@api_view(['GET'])
-def get_task(request, process_id, step_number):
-    tasks_process = Process.objects.get(pk=process_id)
-    task = tasks_process.tasks.get(step_number=step_number)
-    return Response({'data': {'title': 'title', 'content': f'{task.description}'}})
+@api_view(['GET', 'PUT'])
+def task(request, process_id, step_number):
+    if request.method == 'GET':
+        try:
+            tasks_process = Process.objects.get(pk=process_id)
+            task = tasks_process.tasks.get(step_number=step_number)
+            return Response({'data': {'title': 'title', 'content': task.content}})
+        except:
+            return Response({'error': 'Server error'}, status=500)
+    elif request.method == 'PUT':
+        try:
+            tasks_process = Process.objects.get(pk=process_id)
+            task = tasks_process.tasks.get(step_number=step_number)
+            task.content = request.data['content']
+            task.save()
+            return Response({'message': 'Task updated successfully'})
+        except:
+            return Response({'error': 'Server error'}, status=500)
+    else:
+        return Response({'error': 'Invalid request method'}, status=400)
