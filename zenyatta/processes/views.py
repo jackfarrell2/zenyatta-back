@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Process, Task
+from .models import Process, Task, Team, Company
 
 
 def get_task_data(task):
@@ -85,3 +85,24 @@ def task(request, process_id, step_number):
             return Response({'error': 'Server error'}, status=500)
     else:
         return Response({'error': 'Invalid request method'}, status=400)
+
+@api_view(['GET'])
+def processes(request):
+    try:
+        if request.method == 'GET':
+            company_pk = 1 # Hard coded for now
+            company = Company.objects.get(pk=company_pk)
+            teams = company.teams.all()
+            processes = []
+            for team in teams:
+                team_processes_struct = []
+                team_processes = team.processes.filter(isPrimary=True)
+                for process in team_processes:
+                    team_processes_struct.append({'name': process.title, 'id': process.pk})
+                processes.append({'team': team.name, 'team_processes': team_processes_struct})
+            return Response({'data': {'processes': processes}})
+        else:
+            return Response({'error': 'Invalid request'}, status=400)
+    except:
+        return Response({'error': 'Server error'}, status=500)
+
