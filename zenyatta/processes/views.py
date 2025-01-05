@@ -1,7 +1,9 @@
 from django.shortcuts import render
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Process, Task, Team, Company
+from .models import Process, Task, Company
+from django.utils import timezone
+
 
 
 def get_task_data(task):
@@ -52,6 +54,8 @@ def get_process(request, process_id):
     try:
         try:
             this_process = Process.objects.get(pk=process_id)
+            this_process.last_opened = timezone.now()
+            this_process.save()
         except:
             return Response({'error': 'Invalid process Id'}, status=500)
         this_process_tasks = this_process.tasks.all()
