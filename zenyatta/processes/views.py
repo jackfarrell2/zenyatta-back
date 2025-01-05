@@ -109,6 +109,25 @@ def processes(request):
             return Response({'error': 'Invalid request'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
+
+@api_view(['GET'])
+def searchprocesses(request):
+    try:
+        if request.method == 'GET':
+            search_processes = []
+            company_pk = 1 # hard coded for now
+            company = Company.objects.get(pk=company_pk)
+            processes = Process.objects.filter(
+                team__company_id=company_pk,
+                is_primary=True
+            )
+            for process in processes:
+                search_processes.append({'name': process.title, 'companyId': company_pk, 'processId': process.pk, 'lastOpened': process.last_opened})
+            return Response({'data': {'searchProcesses': search_processes}})
+        else:
+            return Response({'error': 'Invalid request'}, status=400)
+    except:
+        return Response({'error': 'Server error'}, status=500)
     
 @api_view(['GET'])
 def recents(request):
@@ -120,7 +139,7 @@ def recents(request):
                 recent_files.append({'id': file.pk, 'name': file.title, 'lastOpened': file.last_opened, 'location': file.team.name, 'companyId': file.team.company.pk})
             return Response({'data': {'recentFiles': recent_files}})
         else:
-            return Response({'error': 'Invalid reqeust'}, status=400)
+            return Response({'error': 'Invalid reqeust method'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
 
