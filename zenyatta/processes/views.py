@@ -96,13 +96,27 @@ def processes(request):
             processes = []
             for team in teams:
                 team_processes_struct = []
-                team_processes = team.processes.filter(isPrimary=True)
+                team_processes = team.processes.filter(is_primary=True)
                 for process in team_processes:
                     team_processes_struct.append({'name': process.title, 'id': process.pk})
                 processes.append({'team': team.name, 'team_processes': team_processes_struct})
             return Response({'data': {'processes': processes}})
         else:
             return Response({'error': 'Invalid request'}, status=400)
+    except:
+        return Response({'error': 'Server error'}, status=500)
+    
+@api_view(['GET'])
+def recents(request):
+    try:
+        recent_files = []
+        if request.method == 'GET':
+            recent_files_data = Process.objects.filter(last_opened__isnull=False, is_primary=True).order_by('-last_opened')[:5]
+            for file in recent_files_data:
+                recent_files.append({'id': file.pk, 'name': file.title, 'lastOpened': file.last_opened, 'location': file.team.name, 'companyId': file.team.company.pk})
+            return Response({'data': {'recentFiles': recent_files}})
+        else:
+            return Response({'error': 'Invalid reqeust'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
 
