@@ -1,9 +1,20 @@
 from django.shortcuts import render
+from django.core.exceptions import ValidationError
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Process, Task, Company
+from .models import Process, Task, Company, Team
 from django.utils import timezone
+from rest_framework import status, serializers
+from json import loads, JSONDecodeError
 
+
+class ProcessCreateSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=255)
+    teamId = serializers.IntegerField()
+    steps = serializers.ListField(
+        child=serializers.CharField(max_length=255),
+        min_length=1
+    )
 
 
 def get_task_data(task):
@@ -90,11 +101,12 @@ def task(request, process_id, step_number):
     else:
         return Response({'error': 'Invalid request method'}, status=400)
 
-@api_view(['GET'])
+
+@api_view(['GET', 'POST'])
 def processes(request):
     try:
         if request.method == 'GET':
-            company_pk = 1 # Hard coded for now
+            company_pk = 1  # Hard coded for now
             company = Company.objects.get(pk=company_pk)
             teams = company.teams.all()
             processes = []
@@ -102,44 +114,119 @@ def processes(request):
                 team_processes_struct = []
                 team_processes = team.processes.filter(is_primary=True)
                 for process in team_processes:
-                    team_processes_struct.append({'name': process.title, 'id': process.pk})
-                processes.append({'team': team.name, 'team_processes': team_processes_struct})
+                    team_processes_struct.append(
+                        {'name': process.title, 'id': process.pk})
+                processes.append(
+                    {'team': team.name, 'team_processes': team_processes_struct})
             return Response({'data': {'processes': processes}})
+        elif request.method == 'POST':
+            try:
+                try:
+                    data = loads(request.body)
+                except JSONDecodeError:
+                    return Response(
+                        {'error': 'Invalid JSON format'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                # Validate the data structure
+                serializer = ProcessCreateSerializer(data=data)
+                if not serializer.is_valid():
+                    return Response(
+                        {'error': serializer.errors},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                # Validate team exists
+                try:
+                    team = Team.objects.get(pk=data['teamId'])
+                except Team.DoesNotExist:
+                    return Response(
+                        {'error': 'Team not found'},
+                        status=status.HTTP_404_NOT_FOUND
+                    )
+                title = data['name']
+                is_primary = True
+                team = Team.objects.get(pk=data['teamId'])
+                process = Process(
+                    title=title, is_primary=is_primary, team=team)
+                try:
+                    process.clean()
+                    process.save()
+                except ValidationError as e:
+                    return Response(
+                        {'error': str(e)},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                processId = process.pk
+                for index, step in enumerate(data['steps']):
+                    task = Task(title=step, process=process,
+                                step_number=index + 1)
+                    try:
+                        task.clean()
+                        task.save()
+                    except ValidationError as e:
+                        process.delete()
+                        return Response(
+                            {'error': f'Invalid task data: {str(e)}'},
+                            status=status.HTTP_400_BAD_REQUEST)
+                return Response({'data': {'processId': processId, 'companyId': process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
+            except:
+                return Response({'error': 'Server error'}, status=500)
         else:
             return Response({'error': 'Invalid request'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
+
 
 @api_view(['GET'])
 def searchprocesses(request):
     try:
         if request.method == 'GET':
             search_processes = []
-            company_pk = 1 # hard coded for now
+            company_pk = 1  # hard coded for now
             company = Company.objects.get(pk=company_pk)
             processes = Process.objects.filter(
                 team__company_id=company_pk,
                 is_primary=True
             )
             for process in processes:
-                search_processes.append({'name': process.title, 'companyId': company_pk, 'processId': process.pk, 'lastOpened': process.last_opened})
+                search_processes.append({'name': process.title, 'companyId': company_pk,
+                                        'processId': process.pk, 'lastOpened': process.last_opened})
             return Response({'data': {'searchProcesses': search_processes}})
         else:
-            return Response({'error': 'Invalid request'}, status=400)
+            return Response({'error': 'Invalid request method'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
-    
+
+
 @api_view(['GET'])
 def recents(request):
     try:
         recent_files = []
         if request.method == 'GET':
-            recent_files_data = Process.objects.filter(last_opened__isnull=False, is_primary=True).order_by('-last_opened')[:5]
+            recent_files_data = Process.objects.filter(
+                last_opened__isnull=False, is_primary=True).order_by('-last_opened')[:5]
             for file in recent_files_data:
-                recent_files.append({'id': file.pk, 'name': file.title, 'lastOpened': file.last_opened, 'location': file.team.name, 'companyId': file.team.company.pk})
+                recent_files.append({'id': file.pk, 'name': file.title, 'lastOpened': file.last_opened,
+                                    'location': file.team.name, 'companyId': file.team.company.pk})
             return Response({'data': {'recentFiles': recent_files}})
         else:
             return Response({'error': 'Invalid reqeust method'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
 
+
+@api_view(['GET'])
+def teams(request):
+    try:
+        if request.method == 'GET':
+            teams = []
+            all_teams = Team.objects.all()
+            for team in all_teams:
+                teams.append(
+                    {'name': team.name, 'companyId': team.company.id, 'id': team.pk})
+            return Response({'data': {'teams': teams}})
+        else:
+            return Response({'error': 'Invalid request method'}, status=400)
+    except:
+        return Response({'error': 'Server error'}, status=500)

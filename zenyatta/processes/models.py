@@ -15,11 +15,13 @@ def get_default_content():
         ]
     }
 
+
 class Company(models.Model):
     name = models.CharField(max_length=255)
 
     def __str__(self):
         return self.name
+
 
 class Team(models.Model):
     name = models.CharField(max_length=255)
@@ -32,6 +34,7 @@ class Team(models.Model):
     def __str__(self):
         return self.name
 
+
 class Process(models.Model):
     title = models.CharField(max_length=255)
     is_primary = models.BooleanField(default=False)
@@ -40,7 +43,7 @@ class Process(models.Model):
         on_delete=models.SET_NULL,
         related_name='processes',
         null=True
-    )   
+    )
     last_opened = models.DateTimeField(null=True)
 
     def __str__(self):
