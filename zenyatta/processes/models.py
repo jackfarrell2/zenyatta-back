@@ -40,9 +40,8 @@ class Process(models.Model):
     is_primary = models.BooleanField(default=False)
     team = models.ForeignKey(
         Team,
-        on_delete=models.SET_NULL,
+        on_delete=models.PROTECT,
         related_name='processes',
-        null=True
     )
     last_opened = models.DateTimeField(null=True)
 

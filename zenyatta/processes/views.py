@@ -56,7 +56,8 @@ def get_task_data(task):
         'subTasks': sub_tasks,
         'linkedProcessId': linked_process_id,
         'parentProcessId': parent_process.id,
-        'targets': next_step
+        'targets': next_step,
+        'teamId': parent_process.team.pk
     }
 
 
