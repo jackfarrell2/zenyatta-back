@@ -44,7 +44,7 @@ def get_task_data(task):
     parent_process = task.process
     try:
         next_step = [
-            f'node-{Task.objects.get(process=parent_process, step_number=task.step_number + 1).pk}']
+            f'node-{Task.objects.get(process=parent_process, step_number=task.step_number).pk}']
     except:
         next_step = []
 
@@ -103,7 +103,7 @@ def task(request, process_id, step_number):
         return Response({'error': 'Invalid request method'}, status=400)
 
 
-@api_view(['GET', 'POST'])
+@api_view(['GET', 'POST', 'DELETE'])
 def processes(request):
     try:
         if request.method == 'GET':
@@ -207,6 +207,29 @@ def processes(request):
                     return Response({'data': {'processId': processId, 'companyId': process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
             except:
                 return Response({'error': 'Server error'}, status=500)
+        elif request.method == 'DELETE':
+            try:
+                data = loads(request.body)
+                process_id = data['processId']
+                step_number = data['stepNumber']
+                is_primary = data['isPrimary']
+                parent_process = Process.objects.get(pk=process_id)
+                task = Task.objects.get(
+                    process=parent_process, step_number=step_number)
+                linked_process_to_delete = task.linked_process
+                # convert task to leaf
+                if not is_primary:
+                    task = Task.objects.get(
+                        process=parent_process, step_number=step_number)
+                    task.is_leaf = True
+                    task.linked_process = None
+                    task.save()
+                # delete process
+                delete_process_and_dependencies(linked_process_to_delete)
+                return Response({'message': 'Process deleted successfully'}, status=status.HTTP_200_OK)
+
+            except JSONDecodeError:
+                return Response({'error': 'Invalid JSON format'}, status=status.HTTP_400_BAD_REQUEST)
         else:
             return Response({'error': 'Invalid request'}, status=400)
     except:
@@ -300,3 +323,31 @@ def count_associated_tasks(process):
             total_count += count_associated_tasks(task.linked_process)
 
     return total_count
+
+
+def delete_process_and_dependencies(process):
+    """Recursively deletes a process, its tasks, and any linked processes + tasks"""
+    if not process:
+        return
+
+    # First pass: collect all processes that need to be deleted
+    processes_to_delete = set()
+
+    def collect_processes(proc):
+        if not proc or proc.pk in processes_to_delete:
+            return
+        processes_to_delete.add(proc.pk)
+        for task in proc.tasks.all():
+            if not task.is_leaf and task.linked_process:
+                collect_processes(task.linked_process)
+
+    collect_processes(process)
+
+    # Second pass: delete processes in reverse order
+    for process_id in reversed(list(processes_to_delete)):
+        try:
+            proc = Process.objects.get(pk=process_id)
+            proc.tasks.all().delete()
+            proc.delete()
+        except Process.DoesNotExist:
+            continue
