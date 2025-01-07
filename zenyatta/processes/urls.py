@@ -7,5 +7,7 @@ urlpatterns = [
     path('processes', views.processes),
     path('recents', views.recents),
     path('searchprocesses', views.searchprocesses),
-    path('teams', views.teams)
+    path('teams', views.teams),
+    path('process-associated-tasks-count/<int:parent_process_id>/<int:step_in_parent_process>',
+         views.process_associated_task_count)
 ]

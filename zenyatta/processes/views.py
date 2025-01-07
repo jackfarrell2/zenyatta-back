@@ -146,7 +146,7 @@ def processes(request):
                         status=status.HTTP_404_NOT_FOUND
                     )
                 title = data['name']
-                is_primary = True
+                is_primary = data['isPrimary']
                 team = Team.objects.get(pk=data['teamId'])
                 process = Process(
                     title=title, is_primary=is_primary, team=team)
@@ -170,7 +170,41 @@ def processes(request):
                         return Response(
                             {'error': f'Invalid task data: {str(e)}'},
                             status=status.HTTP_400_BAD_REQUEST)
-                return Response({'data': {'processId': processId, 'companyId': process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
+                if is_primary is False:
+                    if 'parentProcessId' not in data or 'stepInParentProcess' not in data:
+                        process.delete()
+                        return Response(
+                            {'error': 'Missing parentProcessId or stepInParentProcess'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    parent_process_id = data['parentProcessId']
+                    task_step = data['stepInParentProcess']
+                    try:
+                        parent_process = Process.objects.get(
+                            pk=parent_process_id)
+                    except Process.DoesNotExist:
+                        process.delete()
+                        return Response(
+                            {'error': 'Parent process does not exist'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    try:
+                        previousProcessTask = Task.objects.get(
+                            process=parent_process,
+                            step_number=task_step
+                        )
+                    except Task.DoesNotExist:
+                        process.delete()
+                        return Response(
+                            {'error': 'Parent process task not found for given step'},
+                            status=status.HTTP_400_BAD_REQUEST
+                        )
+                    previousProcessTask.is_leaf = False
+                    previousProcessTask.linked_process = process
+                    previousProcessTask.save()
+                    return Response({'data': {'processId': parent_process_id, 'companyId': parent_process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
+                else:
+                    return Response({'data': {'processId': processId, 'companyId': process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
             except:
                 return Response({'error': 'Server error'}, status=500)
         else:
@@ -231,3 +265,38 @@ def teams(request):
             return Response({'error': 'Invalid request method'}, status=400)
     except:
         return Response({'error': 'Server error'}, status=500)
+
+
+@api_view(['GET'])
+def process_associated_task_count(request, parent_process_id, step_in_parent_process):
+    try:
+        parent_process = Process.objects.get(pk=parent_process_id)
+        task_to_convert = Task.objects.get(
+            process=parent_process, step_number=step_in_parent_process)
+
+        if task_to_convert.linked_process:
+            count = count_associated_tasks(task_to_convert.linked_process)
+            return Response({'data': {'tasksToDeleteCount': count}})
+        else:
+            return Response({'error': 'Not a valid process to convert'}, status=status.HTTP_400_BAD_REQUEST)
+
+    except:
+        return Response({'error': 'Server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+def count_associated_tasks(process):
+    """Recursively counts all tasks associated with a process and its linked processes. Returns total count of tasks."""
+    if not process:
+        return 0
+
+    total_count = 0
+
+    # Count direct tasks
+    for task in process.tasks.all():
+        total_count += 1
+
+        # If task links to another process, recursively count its tasks
+        if not task.is_leaf and task.linked_process:
+            total_count += count_associated_tasks(task.linked_process)
+
+    return total_count
