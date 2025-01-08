@@ -44,7 +44,7 @@ def get_task_data(task):
     parent_process = task.process
     try:
         next_step = [
-            f'node-{Task.objects.get(process=parent_process, step_number=task.step_number).pk}']
+            f'node-{Task.objects.get(process=parent_process, step_number=task.step_number + 1).pk}']
     except:
         next_step = []
 
@@ -69,14 +69,18 @@ def get_process(request, process_id):
             this_process.last_opened = timezone.now()
             this_process.save()
         except:
-            return Response({'error': 'Invalid process Id'}, status=500)
+            return Response({'error': 'Invalid process ID'}, status=500)
+        if this_process.is_primary:
+            parent_process_id = None
+        else:
+            parent_process_id = this_process.parent_process.pk
         this_process_tasks = this_process.tasks.all()
         tasks = []
 
         for task in this_process_tasks:
             task_data = get_task_data(task)
             tasks.append(task_data)
-        return Response({'data': {'title': this_process.title, 'tasks': tasks}})
+        return Response({'data': {'title': this_process.title, 'tasks': tasks, 'parentProcessId': parent_process_id}})
     except:
         return Response({'error': 'Server error'}, status=500)
 
@@ -148,8 +152,13 @@ def processes(request):
                 title = data['name']
                 is_primary = data['isPrimary']
                 team = Team.objects.get(pk=data['teamId'])
+                if not is_primary:
+                    if 'parentProcessId' not in data:
+                        return Response({'error': 'Missing parent process Id'})
+                    parent_process = Process.objects.get(
+                        pk=data['parentProcessId'])
                 process = Process(
-                    title=title, is_primary=is_primary, team=team)
+                    title=title, is_primary=is_primary, team=team, parent_process=None if is_primary else parent_process)
                 try:
                     process.clean()
                     process.save()

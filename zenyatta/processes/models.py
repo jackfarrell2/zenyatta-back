@@ -44,6 +44,11 @@ class Process(models.Model):
         related_name='processes',
     )
     last_opened = models.DateTimeField(null=True)
+    parent_process = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True
+    )
 
     def __str__(self):
         return self.title
