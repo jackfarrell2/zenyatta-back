@@ -222,6 +222,7 @@ def processes(request):
                 process_id = data['processId']
                 step_number = data['stepNumber']
                 is_primary = data['isPrimary']
+                convert = data['convert']
                 parent_process = Process.objects.get(pk=process_id)
                 task = Task.objects.get(
                     process=parent_process, step_number=step_number)
@@ -230,11 +231,21 @@ def processes(request):
                 if not is_primary:
                     task = Task.objects.get(
                         process=parent_process, step_number=step_number)
-                    task.is_leaf = True
-                    task.linked_process = None
-                    task.save()
+                    if convert:
+                        task.is_leaf = True
+                        task.linked_process = None
+                        task.save()
+                    else:
+                        parent_process_tasks_to_shift = parent_process.tasks.filter(
+                            step_number__gt=step_number).order_by('step_number')
+                        for task in parent_process_tasks_to_shift:
+                            task.step_number -= 1
+                            # task.save()
+
+                        # task.delete()
                 # delete process
-                delete_process_and_dependencies(linked_process_to_delete)
+                if convert:
+                    delete_process_and_dependencies(linked_process_to_delete)
                 return Response({'message': 'Process deleted successfully'}, status=status.HTTP_200_OK)
 
             except JSONDecodeError:
