@@ -74,7 +74,7 @@ def get_process(request, process_id):
             parent_process_id = None
         else:
             parent_process_id = this_process.parent_process.pk
-        this_process_tasks = this_process.tasks.all()
+        this_process_tasks = this_process.tasks.all().order_by('step_number')
         tasks = []
 
         for task in this_process_tasks:
@@ -169,6 +169,7 @@ def processes(request):
                 title = data['name']
                 is_primary = data['isPrimary']
                 team = Team.objects.get(pk=data['teamId'])
+                add_within = data['addWithin']
                 if not is_primary:
                     if 'parentProcessId' not in data:
                         return Response({'error': 'Missing parent process Id'})
@@ -204,30 +205,61 @@ def processes(request):
                             status=status.HTTP_400_BAD_REQUEST
                         )
                     parent_process_id = data['parentProcessId']
-                    task_step = data['stepInParentProcess']
-                    try:
-                        parent_process = Process.objects.get(
-                            pk=parent_process_id)
-                    except Process.DoesNotExist:
-                        process.delete()
-                        return Response(
-                            {'error': 'Parent process does not exist'},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                    try:
-                        previousProcessTask = Task.objects.get(
-                            process=parent_process,
-                            step_number=task_step
-                        )
-                    except Task.DoesNotExist:
-                        process.delete()
-                        return Response(
-                            {'error': 'Parent process task not found for given step'},
-                            status=status.HTTP_400_BAD_REQUEST
-                        )
-                    previousProcessTask.is_leaf = False
-                    previousProcessTask.linked_process = process
-                    previousProcessTask.save()
+                    if add_within:
+                        root_node_step = data['stepInParentProcess']
+                        try:
+                            parent_process = Process.objects.get(
+                                pk=parent_process_id)
+                        except Process.DoesNotExist:
+                            process.delete()
+                            return Response({'error': 'Parent process does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+                        position = data['position']
+                        if position not in ['above', 'below']:
+                            return Response({'error': 'Invalid position type'}, status=status.HTTP_400_BAD_REQUEST)
+                        if position == 'above':
+                            parent_process_tasks_to_shift = parent_process.tasks.filter(
+                                step_number__gte=root_node_step
+                            )
+                            new_task_step_number = root_node_step
+                        elif position == 'below':
+                            parent_process_tasks_to_shift = parent_process.tasks.filter(
+                                step_number__gt=root_node_step
+                            )
+                            new_task_step_number = root_node_step + 1
+                        for shift_task in parent_process_tasks_to_shift:
+                            shift_task.step_number += 1
+                            shift_task.save()
+                        new_task = Task(
+                            title=title, process=parent_process, step_number=new_task_step_number, is_leaf=False, linked_process=process)
+                        new_task.save()
+
+                        return Response({'message': 'Process added successfully'}, status=status.HTTP_200_OK)
+
+                    else:
+                        task_step = data['stepInParentProcess']
+                        try:
+                            parent_process = Process.objects.get(
+                                pk=parent_process_id)
+                        except Process.DoesNotExist:
+                            process.delete()
+                            return Response(
+                                {'error': 'Parent process does not exist'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        try:
+                            previousProcessTask = Task.objects.get(
+                                process=parent_process,
+                                step_number=task_step
+                            )
+                        except Task.DoesNotExist:
+                            process.delete()
+                            return Response(
+                                {'error': 'Parent process task not found for given step'},
+                                status=status.HTTP_400_BAD_REQUEST
+                            )
+                        previousProcessTask.is_leaf = False
+                        previousProcessTask.linked_process = process
+                        previousProcessTask.save()
                     return Response({'data': {'processId': parent_process_id, 'companyId': parent_process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
                 else:
                     return Response({'data': {'processId': processId, 'companyId': process.team.company.pk, 'message': 'Process created successfully'}}, status=status.HTTP_200_OK)
