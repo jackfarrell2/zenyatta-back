@@ -85,9 +85,43 @@ def get_process(request, process_id):
         return Response({'error': 'Server error'}, status=500)
 
 
-@api_view(['GET', 'PUT', 'DELETE'])
-def tasks(request, process_id, step_number):
+@api_view(['GET', 'PUT', 'DELETE', 'POST'])
+def tasks(request, process_id=None, step_number=None):
     try:
+        if process_id is None or step_number is None:
+            if request.method == 'POST':
+                try:
+                    data = loads(request.body)
+                except JSONDecodeError:
+                    return Response(
+                        {'error': 'Invalid JSON format'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                title = data['title']
+                parent_process = Process.objects.get(
+                    pk=data['parentProcessId'])
+                root_node_step = data['rootNodeStepNumber']
+                position = data['position']
+                if position not in ['above', 'below']:
+                    return Response({'error': 'Invalid position type'}, status=status.HTTP_400_BAD_REQUEST)
+                if position == 'above':
+                    parent_process_tasks_to_shift = parent_process.tasks.filter(
+                        step_number__gte=root_node_step
+                    )
+                    new_task_step_number = root_node_step
+                elif position == 'below':
+                    parent_process_tasks_to_shift = parent_process.tasks.filter(
+                        step_number__gt=root_node_step
+                    )
+                    new_task_step_number = root_node_step + 1
+                for shift_task in parent_process_tasks_to_shift:
+                    shift_task.step_number += 1
+                    shift_task.save()
+                new_task = Task(
+                    title=title, process=parent_process, step_number=new_task_step_number)
+                new_task.save()
+                return Response({'message': 'Task added successfully'}, status=status.HTTP_200_OK)
+
         if request.method == 'GET':
             try:
                 tasks_process = Process.objects.get(pk=process_id)
