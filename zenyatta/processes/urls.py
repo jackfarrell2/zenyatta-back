@@ -3,7 +3,7 @@ from . import views
 
 urlpatterns = [
     path('process/<int:process_id>', views.get_process),
-    path('task/<int:process_id>/<int:step_number>', views.task),
+    path('tasks/<int:process_id>/<int:step_number>', views.tasks),
     path('processes', views.processes),
     path('recents', views.recents),
     path('searchprocesses', views.searchprocesses),

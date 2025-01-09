@@ -85,26 +85,43 @@ def get_process(request, process_id):
         return Response({'error': 'Server error'}, status=500)
 
 
-@api_view(['GET', 'PUT'])
-def task(request, process_id, step_number):
-    if request.method == 'GET':
-        try:
-            tasks_process = Process.objects.get(pk=process_id)
-            task = tasks_process.tasks.get(step_number=step_number)
-            return Response({'data': {'title': 'title', 'content': task.content}})
-        except:
-            return Response({'error': 'Server error'}, status=500)
-    elif request.method == 'PUT':
-        try:
-            tasks_process = Process.objects.get(pk=process_id)
-            task = tasks_process.tasks.get(step_number=step_number)
-            task.content = request.data['content']
-            task.save()
-            return Response({'message': 'Task updated successfully'})
-        except:
-            return Response({'error': 'Server error'}, status=500)
-    else:
-        return Response({'error': 'Invalid request method'}, status=400)
+@api_view(['GET', 'PUT', 'DELETE'])
+def tasks(request, process_id, step_number):
+    try:
+        if request.method == 'GET':
+            try:
+                tasks_process = Process.objects.get(pk=process_id)
+                task = tasks_process.tasks.get(step_number=step_number)
+                return Response({'data': {'title': 'title', 'content': task.content}})
+            except:
+                return Response({'error': 'Task does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+        elif request.method == 'PUT':
+            try:
+                tasks_process = Process.objects.get(pk=process_id)
+                task = tasks_process.tasks.get(step_number=step_number)
+                task.content = request.data['content']
+                task.save()
+                return Response({'message': 'Task updated successfully'}, status=status.HTTP_200_OK)
+            except:
+                return Response({'error': 'Server error'}, status=500)
+        elif request.method == 'DELETE':
+            try:
+                tasks_process = Process.objects.get(pk=process_id)
+                task = tasks_process.tasks.get(step_number=step_number)
+                parent_process_tasks_to_shift = tasks_process.tasks.filter(
+                    step_number__gt=step_number).order_by('step_number')
+                for shift_task in parent_process_tasks_to_shift:
+                    shift_task.step_number -= 1
+                    shift_task.save()
+                task.delete()
+                return Response({'message': 'Task deleted successfully'}, status=status.HTTP_200_OK)
+            except:
+                return Response({'error': 'Task does not exist'}, status=status.HTTP_400_BAD_REQUEST)
+
+        else:
+            return Response({'error': 'Invalid request method'}, status=400)
+    except:
+        return Response({'error': 'Server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @api_view(['GET', 'POST', 'DELETE'])
@@ -238,11 +255,10 @@ def processes(request):
                     else:
                         parent_process_tasks_to_shift = parent_process.tasks.filter(
                             step_number__gt=step_number).order_by('step_number')
-                        for task in parent_process_tasks_to_shift:
-                            task.step_number -= 1
-                            # task.save()
-
-                        # task.delete()
+                        for shift_task in parent_process_tasks_to_shift:
+                            shift_task.step_number -= 1
+                            shift_task.save()
+                        task.delete()
                 # delete process
                 if convert:
                     delete_process_and_dependencies(linked_process_to_delete)
