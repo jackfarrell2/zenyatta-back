@@ -410,6 +410,40 @@ def process_associated_task_count(request, parent_process_id, step_in_parent_pro
         return Response({'error': 'Server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
+@api_view(['PUT'])
+def move_task(request):
+    try:
+        if request.method == 'PUT':
+            try:
+                data = loads(request.body)
+            except JSONDecodeError:
+                return Response({'error': 'Invalid JSON format'}, status=status.HTTP_400_BAD_REQUEST)
+            process_id = data['processId']
+            step_number = data['stepNumber']
+            direction = data['direction']
+            tasks_process = Process.objects.get(pk=process_id)
+            task = Task.objects.get(process=tasks_process, step_number=step_number)
+            if direction == 'up':
+                task_to_swap = Task.objects.get(process=tasks_process, step_number=(step_number - 1))
+                task_to_swap.step_number += 1
+                task.step_number -= 1
+                task_to_swap.save()
+                task.save()
+            elif direction == 'down':
+                task_to_swap = Task.objects.get(process=tasks_process, step_number=(step_number + 1))
+                task_to_swap.step_number -= 1
+                task.step_number += 1
+                task_to_swap.save()
+                task.save()
+            else:
+                return Response({'error': 'Invalid direction key'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({'message': 'Task successfully moved'}, status=status.HTTP_200_OK)
+        else:
+            return Response({'error': 'Invalid request method'}, status.HTTP_400_BAD_REQUEST)
+    except:
+        return Response({'error': 'Server error'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
 def count_associated_tasks(process):
     """Recursively counts all tasks associated with a process and its linked processes. Returns total count of tasks."""
     if not process:
