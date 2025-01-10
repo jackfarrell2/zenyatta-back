@@ -57,7 +57,8 @@ def get_task_data(task):
         'linkedProcessId': linked_process_id,
         'parentProcessId': parent_process.id,
         'targets': next_step,
-        'teamId': parent_process.team.pk
+        'teamId': parent_process.team.pk,
+        'parentProcessLength': len(parent_process.tasks.all())
     }
 
 
